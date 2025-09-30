@@ -5,6 +5,7 @@
 接受一个目标 PDF 和多个可选的上下文 PDF
 提供PDF（或其他文件）的存储和音频的存储
 第一步使用Gradio 实现相关功能
-语言使用python
+语言使用python	isort ./src black ./src flake8 ./src mypy --ignore-missing-imports ./src
 加上一点后端的东西 比如Kafka
 输入的语言问题
+多模态输入 文字 pdf markdown 视频 url 图片

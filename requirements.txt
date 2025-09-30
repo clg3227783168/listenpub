@@ -1,0 +1,11 @@
+gradio>=4.0.0
+openai>=1.0.0
+requests>=2.30.0
+pydub>=0.25.1
+elevenlabs>=0.2.0
+python-dotenv>=1.0.0
+streamlit>=1.28.0
+numpy>=1.24.0
+scipy>=1.10.0
+matplotlib>=3.6.0
+python-i18n>=0.3.9
