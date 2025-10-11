@@ -45,13 +45,6 @@ class I18nHelper:
 
         return translation
 
-    def get_podcast_type_choices(self) -> list:
-        """获取播客类型选择列表"""
-        return [
-            self.t("quick_essence"),
-            self.t("deep_exploration"),
-            self.t("debate_discussion")
-        ]
 
     def get_language_choices(self) -> list:
         """获取语言选择列表"""
