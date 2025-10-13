@@ -10,20 +10,17 @@ class I18nHelper:
         self.load_translations()
 
     def load_translations(self):
-        """加载所有语言的翻译文件"""
-        locales_dir = os.path.join(os.path.dirname(__file__), 'locales')
-        for lang in ['zh', 'en']:
-            lang_file = os.path.join(locales_dir, lang, 'messages.json')
-            if os.path.exists(lang_file):
-                with open(lang_file, 'r', encoding='utf-8') as f:
-                    self.translations[lang] = json.load(f)
+        """加载中文翻译文件"""
+        locales_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'locales')
+        lang_file = os.path.join(locales_dir, 'zh', 'messages.json')
+        if os.path.exists(lang_file):
+            with open(lang_file, 'r', encoding='utf-8') as f:
+                self.translations['zh'] = json.load(f)
 
     def set_language(self, language: str):
-        """设置当前语言"""
-        if language in self.translations:
-            self.current_language = language
-            return True
-        return False
+        """设置当前语言（固定为中文）"""
+        self.current_language = 'zh'
+        return True
 
     def get_language(self) -> str:
         """获取当前语言"""
@@ -47,11 +44,8 @@ class I18nHelper:
 
 
     def get_language_choices(self) -> list:
-        """获取语言选择列表"""
-        return [
-            self.t("chinese"),
-            self.t("english")
-        ]
+        """获取语言选择列表（仅中文）"""
+        return ["中文"]
 
 # 全局i18n实例
 i18n = I18nHelper()

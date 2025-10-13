@@ -21,24 +21,114 @@ except ImportError as e:
 class PodcastGenerator:
     def __init__(self):
         self.generated_podcasts = []
-        # 检查CosyVoice是否可用
-        if not COSYVOICE_AVAILABLE:
-            raise RuntimeError("CosyVoice is required but not available. Please check installation and model files.")
+        # # 检查CosyVoice是否可用
+        # if not COSYVOICE_AVAILABLE:
+        #     raise RuntimeError("CosyVoice is required but not available. Please check installation and model files.")
 
-        # 初始化TTS实例
-        self.tts_instance = get_tts_instance()
-        if not self.tts_instance.is_initialized:
-            raise RuntimeError("CosyVoice failed to initialize. Please check model files and dependencies.")
+        # # 初始化TTS实例
+        # self.tts_instance = get_tts_instance()
+        # if not self.tts_instance.is_initialized:
+        #     raise RuntimeError("CosyVoice failed to initialize. Please check model files and dependencies.")
 
-        # 初始化混元大模型客户端
-        self.hunyuan_client = self._init_hunyuan_client()
+        # 初始化AI模型客户端
+        self.ai_client = self._init_ai_client()
 
-    def _init_hunyuan_client(self):
-        """初始化混元大模型客户端"""
+        # 初始化预设选项
+        self._init_preset_options()
+
+    def _init_preset_options(self):
+        """初始化预设的角色和场景选项"""
+        self.character_presets = {
+            "商业分析师": {
+                "identity": "资深商业分析师",
+                "personality": "专业理性，逻辑思维强，善于数据分析",
+                "voice_style": "专业权威"
+            },
+            "企业高管": {
+                "identity": "企业高级管理人员",
+                "personality": "实战经验丰富，决策果断，具有领导力",
+                "voice_style": "成熟稳重"
+            },
+            "科技记者": {
+                "identity": "科技领域记者",
+                "personality": "善于提问，好奇心强，关注科技趋势",
+                "voice_style": "活泼生动"
+            },
+            "技术专家": {
+                "identity": "技术领域专家",
+                "personality": "深入浅出，耐心细致，乐于分享知识",
+                "voice_style": "清晰标准"
+            },
+            "历史学者": {
+                "identity": "历史研究学者",
+                "personality": "博学风趣，善于讲故事，富有文化底蕴",
+                "voice_style": "温和亲切"
+            },
+            "专业医师": {
+                "identity": "医疗健康专家",
+                "personality": "权威可信，细心负责，关注民生健康",
+                "voice_style": "温柔甜美"
+            },
+            "教育工作者": {
+                "identity": "经验丰富的老师",
+                "personality": "耐心细致，循循善诱，富有教育情怀",
+                "voice_style": "温和亲切"
+            },
+            "艺术家": {
+                "identity": "创作型艺术家",
+                "personality": "感性表达，富有创意，追求艺术美感",
+                "voice_style": "深沉磁性"
+            },
+            "评论家": {
+                "identity": "专业评论人员",
+                "personality": "理性分析，专业点评，观点锐利",
+                "voice_style": "专业权威"
+            },
+            "生活主播": {
+                "identity": "生活方式分享者",
+                "personality": "亲和力强，贴近生活，善于共情",
+                "voice_style": "青春朝气"
+            },
+            "新闻主播": {
+                "identity": "新闻播报员",
+                "personality": "客观专业，语言准确，形象端庄",
+                "voice_style": "清晰标准"
+            },
+            "时事评论员": {
+                "identity": "时事分析专家",
+                "personality": "深度分析，见解独到，关注社会热点",
+                "voice_style": "专业权威"
+            }
+        }
+
+        self.scenario_presets = {
+            "深度访谈": "一对一深入访谈形式，探讨专业话题",
+            "圆桌讨论": "多人讨论，观点碰撞，互动热烈",
+            "知识分享": "专家分享知识，听众学习成长",
+            "故事叙述": "以讲故事的方式展开，引人入胜",
+            "问答互动": "主持人提问，嘉宾回答的互动形式",
+            "辩论对话": "不同观点的理性辩论和讨论",
+            "经验分享": "分享个人或专业经验和心得",
+            "新闻解读": "对时事新闻进行深度解读和分析"
+        }
+
+        self.voice_presets = {
+            "温和亲切": "温暖柔和的声音，让人感到舒适",
+            "专业权威": "沉稳有力的声音，体现专业性",
+            "活泼生动": "充满活力的声音，富有感染力",
+            "深沉磁性": "低沉有磁性的声音，很有吸引力",
+            "清晰标准": "发音标准清晰，适合知识传播",
+            "温柔甜美": "轻柔甜美的声音，很有亲和力",
+            "成熟稳重": "成熟稳重的声音，给人信任感",
+            "青春朝气": "年轻有朝气的声音，充满活力"
+        }
+
+    def _init_ai_client(self):
+        """初始化AI模型客户端"""
         try:
-            api_key = os.environ.get("HUNYUAN_API_KEY")
+            api_key = os.environ.get("LISTENPUB_KEY")
             if not api_key:
-                print("Warning: HUNYUAN_API_KEY not found in environment variables")
+                print("Warning: LISTENPUB_KEY not found in environment variables")
                 return None
 
             client = OpenAI(
@@ -53,38 +143,49 @@ class PodcastGenerator:
                 max_tokens=10,
                 extra_body={"enable_enhancement": True}
             )
-            print("✅ 混元大模型连接成功")
+            print("✅ AI模型连接成功")
             return client
         except Exception as e:
-            print(f"❌ 混元大模型初始化失败: {e}")
+            print(f"❌ AI模型初始化失败: {e}")
             return None
 
-    def text_to_podcast(self, topic: str, character_settings: str, voice_settings: str, language: str) -> Tuple[str, str, str]:
+    def text_to_podcast(self, topic: str, character_presets: list, scenario_preset: str, voice_preset: str, language: str) -> Tuple[str, str]:
         """使用CosyVoice生成播客内容和脚本"""
-        return self._generate_with_cosyvoice(topic, character_settings, voice_settings, language)
+        # 从多选的角色预设构建角色设定
+        if not character_presets:
+            character_presets = [list(self.character_presets.keys())[0]]  # 默认选择第一个
 
-    def _generate_with_cosyvoice(self, topic: str, character_settings: str, voice_settings: str, language: str) -> Tuple[str, str, str]:
+        # 构建角色详细信息
+        characters = []
+        for char_key in character_presets:
+            if char_key in self.character_presets:
+                char_data = self.character_presets[char_key]
+                character_desc = f"{char_key}：{char_data['identity']}，{char_data['personality']}"
+                characters.append(character_desc)
+
+        # 构建角色设定字符串
+        character_settings = '\n'.join(characters) if characters else "默认角色设定"
+        scenario_settings = self.scenario_presets.get(scenario_preset, scenario_preset)
+        voice_settings = self.voice_presets.get(voice_preset, voice_preset)
+
+        return self._generate_with_cosyvoice(topic, character_settings, voice_settings, scenario_settings, language)
+
+    def _generate_with_cosyvoice(self, topic: str, character_settings: str, voice_settings: str, scenario_settings: str, language: str) -> Tuple[str, str, str]:
         """使用CosyVoice生成播客"""
         # 解析角色和音色设定
         characters = character_settings.strip().split('\n') if character_settings.strip() else []
         if not characters:
-            if language == 'zh':
-                characters = ["主持人：专业、理性的播客主持人"]
-            else:
-                characters = ["Host: Professional and rational podcast host"]
+            characters = ["主持人：专业、理性的播客主持人"]
 
         voices = voice_settings.strip().split('\n') if voice_settings.strip() else []
         if not voices:
-            if language == 'zh':
-                voices = ["温和中性的声音"]
-            else:
-                voices = ["Warm and neutral voice"]
+            voices = ["温和中性的声音"]
 
-        # 生成播客脚本
-        script_content = self._generate_podcast_script(topic, characters, language)
+        # 生成播客脚本（包含场景设定）
+        script_content = self._generate_podcast_script(topic, characters, scenario_settings, language)
 
         # 使用CosyVoice合成示例音频
-        sample_text = f"欢迎收听今天的播客，主题是{topic}" if language == 'zh' else f"Welcome to today's podcast about {topic}"
+        sample_text = f"欢迎收听今天的播客，主题是{topic}"
 
         audio_path = self.tts_instance.synthesize_speech(
             text=sample_text,
@@ -94,34 +195,28 @@ class PodcastGenerator:
         )
 
         # 生成状态信息
-        model_status = "✅ 混元大模型" if self.hunyuan_client else "❌ 混元大模型未配置"
+        model_status = "✅ AI模型" if self.ai_client else "❌ AI模型未配置"
         audio_info = f"""
 🎙️ ListenPub AI播客生成完成！
 
 📊 生成信息：
 - 脚本生成: {model_status}
 - 语音合成: CosyVoice-300M-SFT (轻量级)
-- 语言: {language}
+- 语言: 中文
 - 角色数量: {len(characters)}
 - 音色类型: {len(voices)}
 
-🤖 大模型状态: {"已连接腾讯混元" if self.hunyuan_client else "未配置 HUNYUAN_API_KEY"}
+🤖 大模型状态: {"已连接AI模型" if self.ai_client else "未配置 LISTENPUB_KEY"}
 🎵 音频状态: {"成功生成示例音频" if audio_path else "音频生成失败"}
 📝 脚本: 已生成完整播客脚本
 
 ✨ 支持特性:
-- AI智能脚本生成 (混元大模型)
+- AI智能脚本生成
 - 预设音色合成 (CosyVoice)
-- 多语言支持 (主要中文)
+- 中文语音支持
 - 高质量语音
 - 快速推理 (内存友好)
 """
-
-        # 角色音色映射
-        character_voice_mapping = f"{i18n.t('character_voice_mapping')}\n"
-        for i, character in enumerate(characters):
-            voice = voices[i] if i < len(voices) else voices[0] if voices else "默认音色"
-            character_voice_mapping += f"{character} → {voice} (CosyVoice)\n"
 
         # 保存到历史记录
         podcast_data = {
@@ -130,7 +225,7 @@ class PodcastGenerator:
             "character_settings": character_settings[:100] + "..." if len(character_settings) > 100 else character_settings,
             "voice_settings": voice_settings[:100] + "..." if len(voice_settings) > 100 else voice_settings,
             "duration": "5-15分钟",
-            "language": language,
+            "language": "中文",
             "engine": "CosyVoice",
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
         }
@@ -143,19 +238,19 @@ class PodcastGenerator:
             except:
                 pass
 
-        return script_content, audio_info, character_voice_mapping
+        return script_content, audio_info
 
-    def _generate_podcast_script(self, topic: str, characters: List[str], language: str) -> str:
-        """使用混元大模型生成播客脚本"""
-        if not self.hunyuan_client:
-            return self._generate_fallback_script(topic, characters, language)
+    def _generate_podcast_script(self, topic: str, characters: List[str], scenario_settings: str, language: str) -> str:
+        """使用AI模型生成播客脚本"""
+        if not self.ai_client:
+            return self._generate_fallback_script(topic, characters, scenario_settings, language)
 
         try:
             # 构建提示词
-            prompt = self._build_script_prompt(topic, characters, language)
+            prompt = self._build_script_prompt(topic, characters, scenario_settings, language)
 
-            # 调用混元大模型
-            response = self.hunyuan_client.chat.completions.create(
+            # 调用AI模型
+            response = self.ai_client.chat.completions.create(
                 model="hunyuan-turbos-latest",
                 messages=[
                     {
@@ -175,13 +270,13 @@ class PodcastGenerator:
             )
 
             script_content = response.choices[0].message.content
-            return f"🎙️ AI生成播客脚本 (混元大模型)\n\n{script_content}"
+            return f"🎙️ AI生成播客脚本\n\n{script_content}"
 
         except Exception as e:
-            print(f"❌ 混元大模型生成脚本失败: {e}")
-            return self._generate_fallback_script(topic, characters, language)
+            print(f"❌ AI模型生成脚本失败: {e}")
+            return self._generate_fallback_script(topic, characters, scenario_settings, language)
 
-    def _build_script_prompt(self, topic: str, characters: List[str], language: str) -> str:
+    def _build_script_prompt(self, topic: str, characters: List[str], scenario_settings: str, language: str) -> str:
         """构建脚本生成提示词"""
         if language == 'zh':
             prompt = f"""
@@ -190,13 +285,17 @@ class PodcastGenerator:
 角色设定：
 {chr(10).join([f"• {char}" for char in characters])}
 
+场景设定：
+{scenario_settings}
+
 要求：
 1. 生成一个8-15分钟的播客脚本
-2. 包含开场、主体内容、互动讨论、总结和结尾
-3. 确保内容专业、有趣且有教育意义
-4. 角色之间要有自然的对话和互动
-5. 语言风格要符合播客特点，轻松但不失深度
-6. 在适当的地方添加音效提示，如[音乐]、[掌声]等
+2. 严格按照给定的场景设定来组织内容结构
+3. 包含开场、主体内容、互动讨论、总结和结尾
+4. 确保内容专业、有趣且有教育意义
+5. 角色之间要有自然的对话和互动
+6. 语言风格要符合播客特点，轻松但不失深度
+7. 在适当的地方添加音效提示，如[音乐]、[掌声]等
 
 请生成完整的脚本内容：
 """
@@ -207,26 +306,32 @@ Please generate a complete podcast script about "{topic}".
 Character Setup:
 {chr(10).join([f"• {char}" for char in characters])}
 
+Scenario Setting:
+{scenario_settings}
+
 Requirements:
 1. Generate an 8-15 minute podcast script
-2. Include opening, main content, interactive discussion, summary, and closing
-3. Ensure content is professional, engaging, and educational
-4. Natural dialogue and interaction between characters
-5. Language style should be podcast-appropriate - relaxed but insightful
-6. Add sound effect cues where appropriate, like [music], [applause], etc.
+2. Strictly follow the given scenario setting to organize content structure
+3. Include opening, main content, interactive discussion, summary, and closing
+4. Ensure content is professional, engaging, and educational
+5. Natural dialogue and interaction between characters
+6. Language style should be podcast-appropriate - relaxed but insightful
+7. Add sound effect cues where appropriate, like [music], [applause], etc.
 
 Please generate the complete script content:
 """
         return prompt
 
-    def _generate_fallback_script(self, topic: str, characters: List[str], language: str) -> str:
+    def _generate_fallback_script(self, topic: str, characters: List[str], scenario_settings: str, language: str) -> str:
         """备用脚本生成（原有的静态模板）"""
-        if language == 'zh':
-            script = f"""
+        script = f"""
 🎙️ 播客脚本 - {topic} (备用模板)
 
 👥 角色设定：
 {chr(10).join([f"• {char}" for char in characters])}
+
+🎬 场景设定：
+{scenario_settings}
 
 📝 内容大纲：
 
@@ -234,7 +339,7 @@ Please generate the complete script content:
 主持人：大家好，欢迎收听今天的播客。今天我们要聊的话题是"{topic}"。
 
 【主体内容】
-让我们深入探讨这个话题的各个方面...
+根据{scenario_settings}的形式，让我们深入探讨这个话题的各个方面...
 
 【互动讨论】
 {chr(10).join([f"角色{i+1}：从{char.split('：')[1] if '：' in char else char}的角度分享观点..." for i, char in enumerate(characters)])}
@@ -246,32 +351,6 @@ Please generate the complete script content:
 感谢大家的收听，我们下期再见！
 
 🎵 [使用CosyVoice进行语音合成，支持多角色、多情感表达]
-"""
-        else:
-            script = f"""
-🎙️ Podcast Script - {topic} (Fallback Template)
-
-👥 Character Setup:
-{chr(10).join([f"• {char}" for char in characters])}
-
-📝 Content Outline:
-
-【Opening】
-Host: Hello everyone, welcome to today's podcast. Today we're discussing "{topic}".
-
-【Main Content】
-Let's dive deep into various aspects of this topic...
-
-【Interactive Discussion】
-{chr(10).join([f"Character {i+1}: Sharing perspectives from {char.split(':')[1] if ':' in char else char}..." for i, char in enumerate(characters)])}
-
-【Summary】
-Through today's discussion, we've gained deeper insights into "{topic}"...
-
-【Closing】
-Thank you for listening, see you next time!
-
-🎵 [Generated using CosyVoice with multi-character and emotional expression support]
 """
         return script
 
@@ -492,90 +571,6 @@ def create_interface():
     }
     """
 
-    def update_interface_language(lang):
-        """更新界面语言"""
-        i18n.set_language(lang)
-        return create_interface_components()
-
-    def create_interface_components():
-        """创建界面组件"""
-        components = {}
-
-        # 主标题和介绍
-        components['hero'] = gr.HTML(f"""
-        <div class="hero-section">
-            <h1 class="hero-title">{i18n.t("hero_title")}</h1>
-            <p class="hero-subtitle">{i18n.t("hero_subtitle")}</p>
-        </div>
-        """)
-
-        # 输入组件
-        components['topic_input'] = gr.Textbox(
-            label=i18n.t("podcast_topic"),
-            placeholder=i18n.t("topic_placeholder"),
-            lines=3,
-            container=True
-        )
-
-        components['podcast_type_dropdown'] = gr.Dropdown(
-            choices=i18n.get_podcast_type_choices(),
-            label=i18n.t("podcast_type"),
-            value=i18n.get_podcast_type_choices()[0],
-            info=i18n.t("type_info")
-        )
-
-        components['language_dropdown'] = gr.Dropdown(
-            choices=i18n.get_language_choices(),
-            label=i18n.t("language"),
-            value=i18n.get_language_choices()[0]
-        )
-
-        components['generate_btn'] = gr.Button(
-            i18n.t("generate_btn"),
-            variant="primary",
-            size="lg",
-            elem_classes=["generate-btn"]
-        )
-
-        # 输出组件
-        components['script_output'] = gr.Textbox(
-            label=i18n.t("podcast_script"),
-            lines=20,
-            max_lines=25,
-            placeholder=i18n.t("script_placeholder"),
-            container=True
-        )
-
-        components['audio_status'] = gr.Textbox(
-            label=i18n.t("generation_status"),
-            lines=2,
-            placeholder=i18n.t("status_placeholder"),
-            container=True
-        )
-
-        # 特色功能展示
-        components['features'] = gr.HTML(f"""
-        <div class="feature-grid">
-            <div class="feature-card">
-                <div class="feature-icon">⚡</div>
-                <h3>{i18n.t("feature_quick_title")}</h3>
-                <p>{i18n.t("feature_quick_desc")}</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">🔍</div>
-                <h3>{i18n.t("feature_deep_title")}</h3>
-                <p>{i18n.t("feature_deep_desc")}</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">💬</div>
-                <h3>{i18n.t("feature_debate_title")}</h3>
-                <p>{i18n.t("feature_debate_desc")}</p>
-            </div>
-        </div>
-        """)
-
-        return components
-
     # 创建Gradio界面
     with gr.Blocks(
         title=i18n.t("app_title"),
@@ -612,27 +607,37 @@ def create_interface():
                         container=True
                     )
 
-                    character_input = gr.Textbox(
-                        label=i18n.t("character_settings"),
-                        placeholder=i18n.t("character_placeholder"),
-                        lines=4,
+                    character_checkbox = gr.CheckboxGroup(
+                        choices=list(generator.character_presets.keys()),
+                        label="角色类型选择（多选）",
+                        value=[list(generator.character_presets.keys())[0], list(generator.character_presets.keys())[1]],
                         container=True,
-                        info=i18n.t("character_info")
+                        info="选择适合您播客主题的角色组合（可多选）"
                     )
 
-                    voice_input = gr.Textbox(
-                        label=i18n.t("voice_settings"),
-                        placeholder=i18n.t("voice_placeholder"),
-                        lines=3,
-                        container=True,
-                        info=i18n.t("voice_info")
+                    # 显示选中角色的详细信息
+                    character_info = gr.Markdown(
+                        "",
+                        label="角色详细信息",
+                        container=True
                     )
 
-                    language_dropdown = gr.Dropdown(
-                        choices=i18n.get_language_choices(),
-                        label=i18n.t("language"),
-                        value=i18n.get_language_choices()[0]
+                    scenario_dropdown = gr.Dropdown(
+                        choices=list(generator.scenario_presets.keys()),
+                        label="场景模式选择",
+                        value=list(generator.scenario_presets.keys())[0],
+                        container=True,
+                        info="选择播客的呈现形式和互动风格"
                     )
+
+                    voice_dropdown = gr.Dropdown(
+                        choices=list(generator.voice_presets.keys()),
+                        label="声音风格选择",
+                        value=list(generator.voice_presets.keys())[0],
+                        container=True,
+                        info="选择符合角色特点的声音风格"
+                    )
+
 
                     generate_btn = gr.Button(
                         i18n.t("generate_btn"),
@@ -661,12 +666,6 @@ def create_interface():
                         container=True
                     )
 
-                    character_voice_output = gr.Textbox(
-                        label=i18n.t("character_voice_mapping"),
-                        lines=4,
-                        placeholder=i18n.t("mapping_placeholder"),
-                        container=True
-                    )
 
         # 特色功能展示
         features_section = gr.HTML(f"""
@@ -760,171 +759,41 @@ def create_interface():
             - {i18n.t("tech_backend")}
             """)
 
-        # 底部版本信息和语言切换器
+        # 底部版本信息
         with gr.Row(elem_classes=["footer-info"]):
-            with gr.Column(scale=3):
-                version_info = gr.Markdown(f"""
-                {i18n.t("version_info")}
-                """)
-            with gr.Column(scale=1):
-                language_switcher = gr.Radio(
-                    choices=["🇨🇳 中文", "🇺🇸 English"],
-                    value="🇨🇳 中文",
-                    label="Language / 语言",
-                    show_label=False,
-                    container=False
-                )
+            version_info = gr.Markdown(f"""
+            {i18n.t("version_info")}
+            """)
 
-        # 语言切换功能
-        def switch_language(selected_lang):
-            if "中文" in selected_lang:
-                i18n.set_language('zh')
-            else:
-                i18n.set_language('en')
 
-            # 生成更新的关于信息内容
-            about_content = f"""
-            ## {i18n.t("about_title")}
+        # 更新角色信息的函数
+        def update_character_info(selected_characters):
+            if not selected_characters:
+                return "请选择至少一个角色类型"
 
-            **{i18n.t("about_subtitle")}**
+            info_text = "### 选中角色详情：\n\n"
+            for char in selected_characters:
+                if char in generator.character_presets:
+                    char_data = generator.character_presets[char]
+                    info_text += f"**{char}**\n"
+                    info_text += f"- 身份：{char_data['identity']}\n"
+                    info_text += f"- 性格：{char_data['personality']}\n"
+                    info_text += f"- 推荐音色：{char_data['voice_style']}\n\n"
 
-            ### {i18n.t("core_features")}
-            - {i18n.t("feature_ai")}
-            - {i18n.t("feature_fast")}
-            - {i18n.t("feature_formats")}
-            - {i18n.t("feature_multilang")}
-            - {i18n.t("feature_responsive")}
+            return info_text
 
-            ### {i18n.t("usage_steps")}
-            {i18n.t("step1")}
-            {i18n.t("step2")}
-            {i18n.t("step3")}
-            {i18n.t("step4")}
-            {i18n.t("step5")}
-            {i18n.t("step6")}
-
-            ### {i18n.t("tech_stack")}
-            - {i18n.t("tech_frontend")}
-            - {i18n.t("tech_ai")}
-            - {i18n.t("tech_backend")}
-            """
-
-            # 返回更新后的组件
-            return (
-                # 更新hero section
-                gr.HTML(f"""
-                <div class="hero-section">
-                    <h1 class="hero-title">{i18n.t("hero_title")}</h1>
-                    <p class="hero-subtitle">{i18n.t("hero_subtitle")}</p>
-                </div>
-                """),
-                # 更新设置标题
-                gr.Markdown(f"### {i18n.t('podcast_settings')}"),
-                # 更新输入组件
-                gr.Textbox(
-                    label=i18n.t("podcast_topic"),
-                    placeholder=i18n.t("topic_placeholder"),
-                    lines=3,
-                    container=True
-                ),
-                gr.Textbox(
-                    label=i18n.t("character_settings"),
-                    placeholder=i18n.t("character_placeholder"),
-                    lines=4,
-                    container=True,
-                    info=i18n.t("character_info")
-                ),
-                gr.Textbox(
-                    label=i18n.t("voice_settings"),
-                    placeholder=i18n.t("voice_placeholder"),
-                    lines=3,
-                    container=True,
-                    info=i18n.t("voice_info")
-                ),
-                gr.Dropdown(
-                    choices=i18n.get_language_choices(),
-                    label=i18n.t("language"),
-                    value=i18n.get_language_choices()[0]
-                ),
-                gr.Button(
-                    i18n.t("generate_btn"),
-                    variant="primary",
-                    size="lg",
-                    elem_classes=["generate-btn"]
-                ),
-                # 更新结果标题
-                gr.Markdown(f"### {i18n.t('generation_results')}"),
-                # 更新输出组件
-                gr.Textbox(
-                    label=i18n.t("podcast_script"),
-                    lines=15,
-                    max_lines=20,
-                    placeholder=i18n.t("script_placeholder"),
-                    container=True
-                ),
-                gr.Textbox(
-                    label=i18n.t("generation_status"),
-                    lines=2,
-                    placeholder=i18n.t("status_placeholder"),
-                    container=True
-                ),
-                gr.Textbox(
-                    label=i18n.t("character_voice_mapping"),
-                    lines=4,
-                    placeholder=i18n.t("mapping_placeholder"),
-                    container=True
-                ),
-                # 更新功能展示
-                gr.HTML(f"""
-                <div class="feature-grid">
-                    <div class="feature-card">
-                        <div class="feature-icon">🎭</div>
-                        <h3>{i18n.t("feature_character_title")}</h3>
-                        <p>{i18n.t("feature_character_desc")}</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🎤</div>
-                        <h3>{i18n.t("feature_voice_title")}</h3>
-                        <p>{i18n.t("feature_voice_desc")}</p>
-                    </div>
-                    <div class="feature-card">
-                        <div class="feature-icon">🎙️</div>
-                        <h3>{i18n.t("feature_interaction_title")}</h3>
-                        <p>{i18n.t("feature_interaction_desc")}</p>
-                    </div>
-                </div>
-                """),
-                # 更新折叠面板内的标题和内容
-                gr.Markdown(f"### {i18n.t('generation_history')}"),
-                gr.Markdown(i18n.t("no_history")),
-                gr.Button(i18n.t("refresh_history"), variant="secondary"),
-                gr.Markdown(f"### {i18n.t('advanced_settings')}"),
-                gr.Markdown(f"### {i18n.t('about_listenpub')}"),
-                gr.Markdown(about_content),
-                # 更新底部版本信息
-                gr.Markdown(f"""
-                {i18n.t("version_info")}
-                """)
-            )
-
-        # 绑定语言切换事件
-        language_switcher.change(
-            fn=switch_language,
-            inputs=[language_switcher],
-            outputs=[
-                hero_section, settings_title, topic_input, character_input,
-                voice_input, language_dropdown, generate_btn, results_title, script_output,
-                audio_status, character_voice_output, features_section, history_title, history_output,
-                refresh_history_btn, settings_title_adv, about_title_section,
-                about_content_md, version_info
-            ]
+        # 绑定角色选择变化事件
+        character_checkbox.change(
+            fn=update_character_info,
+            inputs=character_checkbox,
+            outputs=character_info
         )
 
         # 绑定生成事件
         generate_btn.click(
-            fn=generator.text_to_podcast,
-            inputs=[topic_input, character_input, voice_input, language_dropdown],
-            outputs=[script_output, audio_status, character_voice_output]
+            fn=lambda topic, characters, scenario, voice: generator.text_to_podcast(topic, characters, scenario, voice, "zh")[:2],
+            inputs=[topic_input, character_checkbox, scenario_dropdown, voice_dropdown],
+            outputs=[script_output, audio_status]
         )
 
         # 绑定历史刷新事件
