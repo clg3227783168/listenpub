@@ -18,21 +18,29 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
-try:
-    from character_engine import CharacterProfile, EmotionState
-    from voice_engine import VoiceProfile
-    ENGINES_AVAILABLE = True
-except ImportError:
-    ENGINES_AVAILABLE = False
-    # 创建模拟的枚举和类
-    class EmotionState:
-        NEUTRAL = "neutral"
-        EXCITED = "excited"
-        SERIOUS = "serious"
-        CONFUSED = "confused"
-        AGREEING = "agreeing"
-        DISAGREEING = "disagreeing"
-        THINKING = "thinking"
+class EmotionState:
+    """情感状态枚举"""
+    NEUTRAL = "neutral"
+    EXCITED = "excited"
+    SERIOUS = "serious"
+    CONFUSED = "confused"
+    AGREEING = "agreeing"
+    DISAGREEING = "disagreeing"
+    THINKING = "thinking"
+
+# 简化版的CharacterProfile数据类
+@dataclass
+class CharacterProfile:
+    """角色配置"""
+    name: str
+    role: str = ""
+    personality: str = ""
+    expertise: List[str] = None
+    speaking_style: str = ""
+
+    def __post_init__(self):
+        if self.expertise is None:
+            self.expertise = []
 
 class DialogueType(Enum):
     OPENING = "opening"
@@ -76,10 +84,116 @@ class DialogueEngine:
         self.interaction_patterns = self._load_interaction_patterns()
         self.dialogue_templates = self._load_dialogue_templates()
 
+    async def generate_podcast_dialogue_simple(self,
+                                             topic: str,
+                                             character_names: List[str],
+                                             character_presets: Dict[str, Dict],
+                                             scenario: str,
+                                             target_duration: int = 900) -> str:
+        """简化版对话生成接口 - 直接返回带情感标记的脚本文本
+
+        Args:
+            topic: 播客主题
+            character_names: 角色名称列表，例如 ["商业分析师", "科技记者"]
+            character_presets: 角色预设配置字典，从app.py传入
+            scenario: 场景名称，例如 "深度访谈"
+            target_duration: 目标时长（秒）
+
+        Returns:
+            str: 格式化的播客脚本文本（包含CosyVoice情感标记）
+        """
+        # 1. 将简单参数转换为CharacterProfile对象
+        characters = self._convert_to_character_profiles(character_names, character_presets)
+
+        # 2. 生成对话片段
+        dialogue_segments = await self.generate_podcast_dialogue(
+            topic=topic,
+            characters=characters,
+            voice_profiles=[],  # 简化版不需要voice_profiles
+            target_duration=target_duration
+        )
+
+        # 3. 格式化为文本脚本
+        script_text = self._format_script_for_output(dialogue_segments, topic, scenario)
+
+        return script_text
+
+    def _convert_to_character_profiles(self,
+                                       character_names: List[str],
+                                       character_presets: Dict[str, Dict]) -> List[CharacterProfile]:
+        """将角色名称列表转换为CharacterProfile对象列表"""
+        profiles = []
+
+        for char_name in character_names:
+            if char_name in character_presets:
+                preset = character_presets[char_name]
+                profile = CharacterProfile(
+                    name=char_name,
+                    role=preset.get('identity', char_name),
+                    personality=preset.get('personality', ''),
+                    expertise=[],
+                    speaking_style=preset.get('voice_style', '温和亲切')
+                )
+            else:
+                # 如果没有预设，创建默认配置
+                profile = CharacterProfile(
+                    name=char_name,
+                    role=char_name,
+                    personality='专业、友好',
+                    expertise=[],
+                    speaking_style='温和亲切'
+                )
+            profiles.append(profile)
+
+        return profiles
+
+    def _format_script_for_output(self,
+                                   dialogue_segments: List[DialogueSegment],
+                                   topic: str,
+                                   scenario: str) -> str:
+        """格式化脚本输出"""
+        script_lines = []
+
+        # 添加标题
+        script_lines.append(f"# 播客脚本：{topic}\n")
+        script_lines.append(f"**场景模式**: {scenario}\n")
+        script_lines.append("---\n")
+
+        # 添加对话内容
+        for segment_idx, segment in enumerate(dialogue_segments):
+            # 段落标题
+            segment_type_names = {
+                "opening": "【开场】",
+                "discussion": "【讨论】",
+                "debate": "【辩论】",
+                "conclusion": "【总结】",
+                "transition": "【过渡】"
+            }
+            segment_name = segment_type_names.get(segment.segment_type.value, f"【{segment.segment_type.value}】")
+            script_lines.append(f"\n## {segment_name}\n")
+
+            # 对话内容（包含情感标记）
+            for turn in segment.turns:
+                # 验证并修正情感标记
+                validated_content = self.validate_emotion_markup(turn.content)
+                script_lines.append(f"**{turn.speaker}**: {validated_content}\n")
+
+            script_lines.append("")
+
+        # 添加情感标记使用统计
+        tag_stats = self.get_emotion_markup_stats(dialogue_segments)
+        if tag_stats:
+            script_lines.append("\n---\n")
+            script_lines.append("## 情感标记统计\n")
+            for tag, count in tag_stats.items():
+                script_lines.append(f"- `{tag}`: {count}次\n")
+
+        return "\n".join(script_lines)
+
     async def generate_podcast_dialogue(self,
                                       topic: str,
                                       characters: List[CharacterProfile],
-                                      voice_profiles: List[VoiceProfile],
+                                      voice_profiles: List,
                                       target_duration: int = 900) -> List[DialogueSegment]:
         """生成完整播客对话"""
 

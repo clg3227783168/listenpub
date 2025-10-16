@@ -6,8 +6,15 @@ import json
 import asyncio
 from typing import Optional, Tuple, List
 import time
-from src.utils.i18n_helper import i18n
 from openai import OpenAI
+
+# 导入对话生成引擎
+try:
+    from src.engines.dialogue_engine import DialogueEngine
+    DIALOGUE_ENGINE_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: DialogueEngine not available: {e}")
+    DIALOGUE_ENGINE_AVAILABLE = False
 
 # 导入CosyVoice TTS - 唯一的语音引擎
 try:
@@ -32,6 +39,12 @@ class PodcastGenerator:
 
         # 初始化AI模型客户端
         self.ai_client = self._init_ai_client()
+
+        # 初始化对话引擎
+        if DIALOGUE_ENGINE_AVAILABLE:
+            self.dialogue_engine = DialogueEngine()
+        else:
+            self.dialogue_engine = None
 
         # 初始化预设选项
         self._init_preset_options()
@@ -241,40 +254,61 @@ class PodcastGenerator:
         return script_content, audio_info
 
     def _generate_podcast_script(self, topic: str, characters: List[str], scenario_settings: str, language: str) -> str:
-        """使用AI模型生成播客脚本"""
-        if not self.ai_client:
-            return self._generate_fallback_script(topic, characters, scenario_settings, language)
+        """使用对话引擎生成播客脚本"""
 
-        try:
-            # 构建提示词
-            prompt = self._build_script_prompt(topic, characters, scenario_settings, language)
+        # 优先使用dialogue_engine
+        if self.dialogue_engine:
+            try:
+                # 调用简化版接口
+                script_content = asyncio.run(
+                    self.dialogue_engine.generate_podcast_dialogue_simple(
+                        topic=topic,
+                        character_names=characters,
+                        character_presets=self.character_presets,
+                        scenario=scenario_settings,
+                        target_duration=900  # 15分钟
+                    )
+                )
+                return f"🎙️ AI生成播客脚本（带情感标记）\n\n{script_content}"
+            except Exception as e:
+                print(f"❌ DialogueEngine生成脚本失败: {e}")
+                # 失败后尝试使用AI模型
+                pass
 
-            # 调用AI模型
-            response = self.ai_client.chat.completions.create(
-                model="hunyuan-turbos-latest",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "你是一个专业的播客内容制作专家，擅长根据主题和角色设定生成有趣、专业的播客脚本。"
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
+        # 备选方案：使用AI模型
+        if self.ai_client:
+            try:
+                # 构建提示词
+                prompt = self._build_script_prompt(topic, characters, scenario_settings, language)
+
+                # 调用AI模型
+                response = self.ai_client.chat.completions.create(
+                    model="hunyuan-turbos-latest",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": "你是一个专业的播客内容制作专家，擅长根据主题和角色设定生成有趣、专业的播客脚本。"
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt
+                        }
+                    ],
+                    max_tokens=2000,
+                    temperature=0.7,
+                    extra_body={
+                        "enable_enhancement": True
                     }
-                ],
-                max_tokens=2000,
-                temperature=0.7,
-                extra_body={
-                    "enable_enhancement": True
-                }
-            )
+                )
 
-            script_content = response.choices[0].message.content
-            return f"🎙️ AI生成播客脚本\n\n{script_content}"
+                script_content = response.choices[0].message.content
+                return f"🎙️ AI生成播客脚本\n\n{script_content}"
 
-        except Exception as e:
-            print(f"❌ AI模型生成脚本失败: {e}")
-            return self._generate_fallback_script(topic, characters, scenario_settings, language)
+            except Exception as e:
+                print(f"❌ AI模型生成脚本失败: {e}")
+
+        # 最终备用方案：使用静态模板
+        return self._generate_fallback_script(topic, characters, scenario_settings, language)
 
     def _build_script_prompt(self, topic: str, characters: List[str], scenario_settings: str, language: str) -> str:
         """构建脚本生成提示词"""
@@ -357,88 +391,24 @@ Please generate the complete script content:
     def get_history(self) -> str:
         """获取生成历史"""
         if not self.generated_podcasts:
-            return i18n.t("no_history")
+            return "暂无生成历史"
 
-        history = i18n.t("history_title")
+        history = "## 生成历史\n\n"
         for i, podcast in enumerate(self.generated_podcasts, 1):
-            history += i18n.t("history_item",
-                            index=i,
-                            topic=podcast['topic'],
-                            characters=podcast['characters'],
-                            character_settings=podcast['character_settings'],
-                            voice_settings=podcast['voice_settings'],
-                            duration=podcast['duration'],
-                            language=podcast['language'],
-                            timestamp=podcast['timestamp'])
+            history += f"""
+### 记录 {i}
+- **主题**: {podcast['topic']}
+- **角色**: {podcast['characters']}
+- **角色设置**: {podcast['character_settings']}
+- **音色设置**: {podcast['voice_settings']}
+- **时长**: {podcast['duration']}
+- **语言**: {podcast['language']}
+- **生成时间**: {podcast['timestamp']}
 
+---
+
+"""
         return history
-
-def create_error_interface(error_message: str):
-    """创建错误信息界面"""
-    with gr.Blocks(
-        title="ListenPub - CosyVoice Required",
-        theme=gr.themes.Soft(
-            primary_hue="red",
-            secondary_hue="orange",
-            neutral_hue="slate"
-        )
-    ) as app:
-
-        gr.HTML("""
-        <div style="text-align: center; padding: 3rem 0; background: linear-gradient(135deg, #ff6b6b 0%, #ffa726 100%); border-radius: 20px; margin-bottom: 2rem; color: white;">
-            <h1 style="font-size: 3rem; margin-bottom: 1rem;">⚠️ CosyVoice Required</h1>
-            <p style="font-size: 1.2rem; opacity: 0.9;">ListenPub requires CosyVoice to be properly configured</p>
-        </div>
-        """)
-
-        with gr.Column():
-            gr.Markdown(f"""
-            ## ❌ Error
-
-            **{error_message}**
-
-            ## 🔧 解决方案
-
-            请按照以下步骤配置CosyVoice：
-
-            ### 1. 安装依赖
-            ```bash
-            pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
-            ```
-
-            ### 2. 下载CosyVoice模型 (推荐轻量级版本)
-            ```python
-            from modelscope import snapshot_download
-            snapshot_download('iic/CosyVoice-300M-SFT',
-                             local_dir='CosyVoice/pretrained_models/CosyVoice-300M-SFT')
-            ```
-
-            ### 3. 重新启动应用
-            ```bash
-            python app.py
-            ```
-
-            ## 📚 详细文档
-
-            请查看 `COSYVOICE_SETUP.md` 获取详细的安装和配置指南。
-
-            ## 🎯 ListenPub特性
-
-            配置完成后，您将享受到：
-            - 🎤 高质量AI语音合成
-            - 🌍 多语言支持（中英日韩）
-            - 🎭 零样本语音克隆
-            - 😊 情感控制
-            - 👥 多说话人对话
-            """)
-
-            gr.HTML("""
-            <div style="text-align: center; margin-top: 2rem; padding: 1rem; background: #f8f9fa; border-radius: 10px;">
-                <p>配置完成后，刷新页面或重新启动应用即可正常使用</p>
-            </div>
-            """)
-
-    return app
 
 def create_interface():
     try:
@@ -573,7 +543,7 @@ def create_interface():
 
     # 创建Gradio界面
     with gr.Blocks(
-        title=i18n.t("app_title"),
+        title="ListenPub - AI播客生成平台",
         theme=gr.themes.Soft(
             primary_hue="blue",
             secondary_hue="pink",
@@ -586,10 +556,10 @@ def create_interface():
         # 移除原来的顶部语言切换器，将在底部实现
 
         # 主标题和介绍
-        hero_section = gr.HTML(f"""
+        hero_section = gr.HTML("""
         <div class="hero-section">
-            <h1 class="hero-title">{i18n.t("hero_title")}</h1>
-            <p class="hero-subtitle">{i18n.t("hero_subtitle")}</p>
+            <h1 class="hero-title">ListenPub - AI播客生成平台</h1>
+            <p class="hero-subtitle">将文本素材转化为自然互动的多角色播客音频</p>
         </div>
         """)
 
@@ -598,11 +568,11 @@ def create_interface():
             # 左侧输入区
             with gr.Column(scale=1):
                 with gr.Group():
-                    settings_title = gr.Markdown(f"### {i18n.t('podcast_settings')}")
+                    settings_title = gr.Markdown("### 播客设置")
 
                     topic_input = gr.Textbox(
-                        label=i18n.t("podcast_topic"),
-                        placeholder=i18n.t("topic_placeholder"),
+                        label="播客主题",
+                        placeholder="请输入您想要生成播客的主题...",
                         lines=3,
                         container=True
                     )
@@ -640,7 +610,7 @@ def create_interface():
 
 
                     generate_btn = gr.Button(
-                        i18n.t("generate_btn"),
+                        "生成播客",
                         variant="primary",
                         size="lg",
                         elem_classes=["generate-btn"]
@@ -649,66 +619,66 @@ def create_interface():
             # 右侧输出区
             with gr.Column(scale=2):
                 with gr.Group():
-                    results_title = gr.Markdown(f"### {i18n.t('generation_results')}")
+                    results_title = gr.Markdown("### 生成结果")
 
                     script_output = gr.Textbox(
-                        label=i18n.t("podcast_script"),
+                        label="播客脚本",
                         lines=15,
                         max_lines=20,
-                        placeholder=i18n.t("script_placeholder"),
+                        placeholder="生成的播客脚本将显示在这里...",
                         container=True
                     )
 
                     audio_status = gr.Textbox(
-                        label=i18n.t("generation_status"),
+                        label="生成状态",
                         lines=2,
-                        placeholder=i18n.t("status_placeholder"),
+                        placeholder="准备就绪，等待生成...",
                         container=True
                     )
 
 
         # 特色功能展示
-        features_section = gr.HTML(f"""
+        features_section = gr.HTML("""
         <div class="feature-grid">
             <div class="feature-card">
                 <div class="feature-icon">🎭</div>
-                <h3>{i18n.t("feature_character_title")}</h3>
-                <p>{i18n.t("feature_character_desc")}</p>
+                <h3>多角色人设</h3>
+                <p>13种预设角色类型，支持自定义角色人设和个性化配置</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">🎤</div>
-                <h3>{i18n.t("feature_voice_title")}</h3>
-                <p>{i18n.t("feature_voice_desc")}</p>
+                <h3>多样音色风格</h3>
+                <p>8种声音风格可选，支持零样本语音克隆和情感表达</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">🎙️</div>
-                <h3>{i18n.t("feature_interaction_title")}</h3>
-                <p>{i18n.t("feature_interaction_desc")}</p>
+                <h3>自然互动对话</h3>
+                <p>AI驱动的多场景对话生成，呈现真实的播客互动体验</p>
             </div>
         </div>
         """)
 
         # 历史记录和设置（折叠面板）
-        with gr.Accordion(i18n.t("generation_history"), open=False) as history_accordion:
-            history_title = gr.Markdown(f"### {i18n.t('generation_history')}")
-            history_output = gr.Markdown(i18n.t("no_history"))
-            refresh_history_btn = gr.Button(i18n.t("refresh_history"), variant="secondary")
+        with gr.Accordion("生成历史", open=False) as history_accordion:
+            history_title = gr.Markdown("### 生成历史")
+            history_output = gr.Markdown("暂无生成历史")
+            refresh_history_btn = gr.Button("刷新历史", variant="secondary")
 
-        with gr.Accordion(i18n.t("advanced_settings"), open=False) as settings_accordion:
-            settings_title_adv = gr.Markdown(f"### {i18n.t('advanced_settings')}")
+        with gr.Accordion("高级设置", open=False) as settings_accordion:
+            settings_title_adv = gr.Markdown("### 高级设置")
             with gr.Row():
                 api_key_input = gr.Textbox(
                     label="OpenAI API Key",
                     type="password",
-                    placeholder=i18n.t("api_key_placeholder"),
-                    info=i18n.t("api_key_info")
+                    placeholder="请输入您的API密钥...",
+                    info="用于调用AI模型生成播客脚本"
                 )
 
                 voice_dropdown = gr.Dropdown(
                     choices=["alloy", "echo", "fable", "onyx", "nova", "shimmer"],
-                    label=i18n.t("voice_selection"),
+                    label="声音选择",
                     value="alloy",
-                    info=i18n.t("voice_info")
+                    info="选择TTS语音合成的音色"
                 )
 
             with gr.Row():
@@ -717,8 +687,8 @@ def create_interface():
                     maximum=1.0,
                     value=0.7,
                     step=0.1,
-                    label=i18n.t("creativity"),
-                    info=i18n.t("creativity_info")
+                    label="创意程度",
+                    info="控制生成内容的随机性和创造性（0=保守，1=创新）"
                 )
 
                 max_tokens_slider = gr.Slider(
@@ -726,43 +696,43 @@ def create_interface():
                     maximum=4000,
                     value=2000,
                     step=100,
-                    label=i18n.t("content_length"),
-                    info=i18n.t("content_length_info")
+                    label="内容长度",
+                    info="控制生成内容的长度（token数量）"
                 )
 
         # 关于信息
-        with gr.Accordion(i18n.t("about_listenpub"), open=False) as about_accordion:
-            about_title_section = gr.Markdown(f"### {i18n.t('about_listenpub')}")
-            about_content_md = gr.Markdown(f"""
-            ## {i18n.t("about_title")}
+        with gr.Accordion("关于 ListenPub", open=False) as about_accordion:
+            about_title_section = gr.Markdown("### 关于 ListenPub")
+            about_content_md = gr.Markdown("""
+            ## ListenPub - AI播客生成平台
 
-            **{i18n.t("about_subtitle")}**
+            **基于AI技术的智能播客生成平台，将文本素材转化为多角色自然互动的播客音频**
 
-            ### {i18n.t("core_features")}
-            - {i18n.t("feature_ai")}
-            - {i18n.t("feature_fast")}
-            - {i18n.t("feature_formats")}
-            - {i18n.t("feature_multilang")}
-            - {i18n.t("feature_responsive")}
+            ### 核心功能
+            - AI驱动的多角色对话生成
+            - 快速高效的播客制作流程
+            - 支持多种输出格式和场景
+            - 中文原生支持，专为中文播客优化
+            - 响应式界面设计，多终端适配
 
-            ### {i18n.t("usage_steps")}
-            {i18n.t("step1")}
-            {i18n.t("step2")}
-            {i18n.t("step3")}
-            {i18n.t("step4")}
-            {i18n.t("step5")}
-            {i18n.t("step6")}
+            ### 使用步骤
+            1. 输入播客主题
+            2. 选择角色类型和数量
+            3. 选择场景模式
+            4. 选择声音风格
+            5. 点击"生成播客"按钮
+            6. 等待AI生成播客脚本和音频
 
-            ### {i18n.t("tech_stack")}
-            - {i18n.t("tech_frontend")}
-            - {i18n.t("tech_ai")}
-            - {i18n.t("tech_backend")}
+            ### 技术栈
+            - 前端：Gradio Web界面
+            - AI模型：腾讯混元大模型
+            - TTS引擎：CosyVoice 2.0.5B
             """)
 
         # 底部版本信息
         with gr.Row(elem_classes=["footer-info"]):
-            version_info = gr.Markdown(f"""
-            {i18n.t("version_info")}
+            version_info = gr.Markdown("""
+            **版本**: v0.1.0 | **技术**: Gradio + CosyVoice + 腾讯混元 | **开源**: MIT License
             """)
 
 
