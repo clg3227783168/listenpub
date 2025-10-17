@@ -1,52 +1,16 @@
 # -*- coding: utf-8 -*-
 import gradio as gr
 import os
-import tempfile
-import json
-import asyncio
-from typing import Optional, Tuple, List
-import time
-from openai import OpenAI
+import sys
 
-# 导入对话生成引擎
-try:
-    from src.engines.dialogue_engine import DialogueEngine
-    DIALOGUE_ENGINE_AVAILABLE = True
-except ImportError as e:
-    print(f"Warning: DialogueEngine not available: {e}")
-    DIALOGUE_ENGINE_AVAILABLE = False
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# 导入CosyVoice TTS - 唯一的语音引擎
-try:
-    from src.tts.cosy_voice_tts import get_tts_instance
-    COSYVOICE_AVAILABLE = True
-except ImportError as e:
-    print(f"Error: CosyVoice is required but not available: {e}")
-    print("Please install CosyVoice dependencies and download models.")
-    COSYVOICE_AVAILABLE = False
+from src.engines import DialogueEngine, AudioEngine
 
-class PodcastGenerator:
+class Preset:
     def __init__(self):
-        self.generated_podcasts = []
-        # # 检查CosyVoice是否可用
-        # if not COSYVOICE_AVAILABLE:
-        #     raise RuntimeError("CosyVoice is required but not available. Please check installation and model files.")
-
-        # # 初始化TTS实例
-        # self.tts_instance = get_tts_instance()
-        # if not self.tts_instance.is_initialized:
-        #     raise RuntimeError("CosyVoice failed to initialize. Please check model files and dependencies.")
-
-        # 初始化AI模型客户端
-        self.ai_client = self._init_ai_client()
-
-        # 初始化对话引擎
-        if DIALOGUE_ENGINE_AVAILABLE:
-            self.dialogue_engine = DialogueEngine()
-        else:
-            self.dialogue_engine = None
-
-        # 初始化预设选项
+        # 初始化预设选项（仅用于UI展示）
         self._init_preset_options()
 
     def _init_preset_options(self):
@@ -55,62 +19,62 @@ class PodcastGenerator:
             "商业分析师": {
                 "identity": "资深商业分析师",
                 "personality": "专业理性，逻辑思维强，善于数据分析",
-                "voice_style": "专业权威"
+                "voice_style": "专业权威 沉稳有力的声音，体现专业性"
             },
             "企业高管": {
                 "identity": "企业高级管理人员",
                 "personality": "实战经验丰富，决策果断，具有领导力",
-                "voice_style": "成熟稳重"
+                "voice_style": "专业权威 沉稳有力的声音，体现专业性"
             },
             "科技记者": {
                 "identity": "科技领域记者",
                 "personality": "善于提问，好奇心强，关注科技趋势",
-                "voice_style": "活泼生动"
+                "voice_style": "活泼生动 充满活力的声音，富有感染力"
             },
             "技术专家": {
                 "identity": "技术领域专家",
                 "personality": "深入浅出，耐心细致，乐于分享知识",
-                "voice_style": "清晰标准"
+                "voice_style": "清晰标准 适合知识传播"
             },
             "历史学者": {
                 "identity": "历史研究学者",
                 "personality": "博学风趣，善于讲故事，富有文化底蕴",
-                "voice_style": "温和亲切"
+                "voice_style": "温和亲切 温暖柔和的声音，让人感到舒适"
             },
             "专业医师": {
                 "identity": "医疗健康专家",
                 "personality": "权威可信，细心负责，关注民生健康",
-                "voice_style": "温柔甜美"
+                "voice_style": "温柔甜美 轻柔甜美的声音，很有亲和力"
             },
             "教育工作者": {
                 "identity": "经验丰富的老师",
                 "personality": "耐心细致，循循善诱，富有教育情怀",
-                "voice_style": "温和亲切"
+                "voice_style": "温和亲切 温暖柔和的声音，让人感到舒适"
             },
             "艺术家": {
                 "identity": "创作型艺术家",
                 "personality": "感性表达，富有创意，追求艺术美感",
-                "voice_style": "深沉磁性"
+                "voice_style": "深沉磁性 低沉有磁性的声音，很有吸引力"
             },
             "评论家": {
                 "identity": "专业评论人员",
                 "personality": "理性分析，专业点评，观点锐利",
-                "voice_style": "专业权威"
+                "voice_style": "专业权威 沉稳有力的声音，体现专业性"
             },
             "生活主播": {
                 "identity": "生活方式分享者",
                 "personality": "亲和力强，贴近生活，善于共情",
-                "voice_style": "青春朝气"
+                "voice_style": "活泼生动 充满活力的声音，富有感染力"
             },
             "新闻主播": {
                 "identity": "新闻播报员",
                 "personality": "客观专业，语言准确，形象端庄",
-                "voice_style": "清晰标准"
+                "voice_style": "清晰标准 适合知识传播"
             },
             "时事评论员": {
                 "identity": "时事分析专家",
                 "personality": "深度分析，见解独到，关注社会热点",
-                "voice_style": "专业权威"
+                "voice_style": "专业权威 沉稳有力的声音，体现专业性"
             }
         }
 
@@ -125,299 +89,11 @@ class PodcastGenerator:
             "新闻解读": "对时事新闻进行深度解读和分析"
         }
 
-        self.voice_presets = {
-            "温和亲切": "温暖柔和的声音，让人感到舒适",
-            "专业权威": "沉稳有力的声音，体现专业性",
-            "活泼生动": "充满活力的声音，富有感染力",
-            "深沉磁性": "低沉有磁性的声音，很有吸引力",
-            "清晰标准": "发音标准清晰，适合知识传播",
-            "温柔甜美": "轻柔甜美的声音，很有亲和力",
-            "成熟稳重": "成熟稳重的声音，给人信任感",
-            "青春朝气": "年轻有朝气的声音，充满活力"
-        }
-
-    def _init_ai_client(self):
-        """初始化AI模型客户端"""
-        try:
-            api_key = os.environ.get("LISTENPUB_KEY")
-            if not api_key:
-                print("Warning: LISTENPUB_KEY not found in environment variables")
-                return None
-
-            client = OpenAI(
-                api_key=api_key,
-                base_url="https://api.hunyuan.cloud.tencent.com/v1"
-            )
-
-            # 测试连接
-            test_response = client.chat.completions.create(
-                model="hunyuan-turbos-latest",
-                messages=[{"role": "user", "content": "测试连接"}],
-                max_tokens=10,
-                extra_body={"enable_enhancement": True}
-            )
-            print("✅ AI模型连接成功")
-            return client
-        except Exception as e:
-            print(f"❌ AI模型初始化失败: {e}")
-            return None
-
-    def text_to_podcast(self, topic: str, character_presets: list, scenario_preset: str, voice_preset: str, language: str) -> Tuple[str, str]:
-        """使用CosyVoice生成播客内容和脚本"""
-        # 从多选的角色预设构建角色设定
-        if not character_presets:
-            character_presets = [list(self.character_presets.keys())[0]]  # 默认选择第一个
-
-        # 构建角色详细信息
-        characters = []
-        for char_key in character_presets:
-            if char_key in self.character_presets:
-                char_data = self.character_presets[char_key]
-                character_desc = f"{char_key}：{char_data['identity']}，{char_data['personality']}"
-                characters.append(character_desc)
-
-        # 构建角色设定字符串
-        character_settings = '\n'.join(characters) if characters else "默认角色设定"
-        scenario_settings = self.scenario_presets.get(scenario_preset, scenario_preset)
-        voice_settings = self.voice_presets.get(voice_preset, voice_preset)
-
-        return self._generate_with_cosyvoice(topic, character_settings, voice_settings, scenario_settings, language)
-
-    def _generate_with_cosyvoice(self, topic: str, character_settings: str, voice_settings: str, scenario_settings: str, language: str) -> Tuple[str, str, str]:
-        """使用CosyVoice生成播客"""
-        # 解析角色和音色设定
-        characters = character_settings.strip().split('\n') if character_settings.strip() else []
-        if not characters:
-            characters = ["主持人：专业、理性的播客主持人"]
-
-        voices = voice_settings.strip().split('\n') if voice_settings.strip() else []
-        if not voices:
-            voices = ["温和中性的声音"]
-
-        # 生成播客脚本（包含场景设定）
-        script_content = self._generate_podcast_script(topic, characters, scenario_settings, language)
-
-        # 使用CosyVoice合成示例音频
-        sample_text = f"欢迎收听今天的播客，主题是{topic}"
-
-        audio_path = self.tts_instance.synthesize_speech(
-            text=sample_text,
-            language=language,
-            emotion="friendly",
-            stream=False
-        )
-
-        # 生成状态信息
-        model_status = "✅ AI模型" if self.ai_client else "❌ AI模型未配置"
-        audio_info = f"""
-🎙️ ListenPub AI播客生成完成！
-
-📊 生成信息：
-- 脚本生成: {model_status}
-- 语音合成: CosyVoice-300M-SFT (轻量级)
-- 语言: 中文
-- 角色数量: {len(characters)}
-- 音色类型: {len(voices)}
-
-🤖 大模型状态: {"已连接AI模型" if self.ai_client else "未配置 LISTENPUB_KEY"}
-🎵 音频状态: {"成功生成示例音频" if audio_path else "音频生成失败"}
-📝 脚本: 已生成完整播客脚本
-
-✨ 支持特性:
-- AI智能脚本生成
-- 预设音色合成 (CosyVoice)
-- 中文语音支持
-- 高质量语音
-- 快速推理 (内存友好)
-"""
-
-        # 保存到历史记录
-        podcast_data = {
-            "topic": topic,
-            "characters": len(characters),
-            "character_settings": character_settings[:100] + "..." if len(character_settings) > 100 else character_settings,
-            "voice_settings": voice_settings[:100] + "..." if len(voice_settings) > 100 else voice_settings,
-            "duration": "5-15分钟",
-            "language": "中文",
-            "engine": "CosyVoice",
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-        }
-        self.generated_podcasts.append(podcast_data)
-
-        # 清理临时音频文件
-        if audio_path and os.path.exists(audio_path):
-            try:
-                os.unlink(audio_path)
-            except:
-                pass
-
-        return script_content, audio_info
-
-    def _generate_podcast_script(self, topic: str, characters: List[str], scenario_settings: str, language: str) -> str:
-        """使用对话引擎生成播客脚本"""
-
-        # 优先使用dialogue_engine
-        if self.dialogue_engine:
-            try:
-                # 调用简化版接口
-                script_content = asyncio.run(
-                    self.dialogue_engine.generate_podcast_dialogue_simple(
-                        topic=topic,
-                        character_names=characters,
-                        character_presets=self.character_presets,
-                        scenario=scenario_settings,
-                        target_duration=900  # 15分钟
-                    )
-                )
-                return f"🎙️ AI生成播客脚本（带情感标记）\n\n{script_content}"
-            except Exception as e:
-                print(f"❌ DialogueEngine生成脚本失败: {e}")
-                # 失败后尝试使用AI模型
-                pass
-
-        # 备选方案：使用AI模型
-        if self.ai_client:
-            try:
-                # 构建提示词
-                prompt = self._build_script_prompt(topic, characters, scenario_settings, language)
-
-                # 调用AI模型
-                response = self.ai_client.chat.completions.create(
-                    model="hunyuan-turbos-latest",
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "你是一个专业的播客内容制作专家，擅长根据主题和角色设定生成有趣、专业的播客脚本。"
-                        },
-                        {
-                            "role": "user",
-                            "content": prompt
-                        }
-                    ],
-                    max_tokens=2000,
-                    temperature=0.7,
-                    extra_body={
-                        "enable_enhancement": True
-                    }
-                )
-
-                script_content = response.choices[0].message.content
-                return f"🎙️ AI生成播客脚本\n\n{script_content}"
-
-            except Exception as e:
-                print(f"❌ AI模型生成脚本失败: {e}")
-
-        # 最终备用方案：使用静态模板
-        return self._generate_fallback_script(topic, characters, scenario_settings, language)
-
-    def _build_script_prompt(self, topic: str, characters: List[str], scenario_settings: str, language: str) -> str:
-        """构建脚本生成提示词"""
-        if language == 'zh':
-            prompt = f"""
-请为播客生成一个关于"{topic}"的完整脚本。
-
-角色设定：
-{chr(10).join([f"• {char}" for char in characters])}
-
-场景设定：
-{scenario_settings}
-
-要求：
-1. 生成一个8-15分钟的播客脚本
-2. 严格按照给定的场景设定来组织内容结构
-3. 包含开场、主体内容、互动讨论、总结和结尾
-4. 确保内容专业、有趣且有教育意义
-5. 角色之间要有自然的对话和互动
-6. 语言风格要符合播客特点，轻松但不失深度
-7. 在适当的地方添加音效提示，如[音乐]、[掌声]等
-
-请生成完整的脚本内容：
-"""
-        else:
-            prompt = f"""
-Please generate a complete podcast script about "{topic}".
-
-Character Setup:
-{chr(10).join([f"• {char}" for char in characters])}
-
-Scenario Setting:
-{scenario_settings}
-
-Requirements:
-1. Generate an 8-15 minute podcast script
-2. Strictly follow the given scenario setting to organize content structure
-3. Include opening, main content, interactive discussion, summary, and closing
-4. Ensure content is professional, engaging, and educational
-5. Natural dialogue and interaction between characters
-6. Language style should be podcast-appropriate - relaxed but insightful
-7. Add sound effect cues where appropriate, like [music], [applause], etc.
-
-Please generate the complete script content:
-"""
-        return prompt
-
-    def _generate_fallback_script(self, topic: str, characters: List[str], scenario_settings: str, language: str) -> str:
-        """备用脚本生成（原有的静态模板）"""
-        script = f"""
-🎙️ 播客脚本 - {topic} (备用模板)
-
-👥 角色设定：
-{chr(10).join([f"• {char}" for char in characters])}
-
-🎬 场景设定：
-{scenario_settings}
-
-📝 内容大纲：
-
-【开场】
-主持人：大家好，欢迎收听今天的播客。今天我们要聊的话题是"{topic}"。
-
-【主体内容】
-根据{scenario_settings}的形式，让我们深入探讨这个话题的各个方面...
-
-【互动讨论】
-{chr(10).join([f"角色{i+1}：从{char.split('：')[1] if '：' in char else char}的角度分享观点..." for i, char in enumerate(characters)])}
-
-【总结】
-通过今天的讨论，我们对"{topic}"有了更深入的理解...
-
-【结尾】
-感谢大家的收听，我们下期再见！
-
-🎵 [使用CosyVoice进行语音合成，支持多角色、多情感表达]
-"""
-        return script
-
-    def get_history(self) -> str:
-        """获取生成历史"""
-        if not self.generated_podcasts:
-            return "暂无生成历史"
-
-        history = "## 生成历史\n\n"
-        for i, podcast in enumerate(self.generated_podcasts, 1):
-            history += f"""
-### 记录 {i}
-- **主题**: {podcast['topic']}
-- **角色**: {podcast['characters']}
-- **角色设置**: {podcast['character_settings']}
-- **音色设置**: {podcast['voice_settings']}
-- **时长**: {podcast['duration']}
-- **语言**: {podcast['language']}
-- **生成时间**: {podcast['timestamp']}
-
----
-
-"""
-        return history
-
 def create_interface():
-    try:
-        generator = PodcastGenerator()
-    except RuntimeError as e:
-        # 如果CosyVoice不可用，显示错误信息界面
-        return create_error_interface(str(e))
+    generator = Preset()
+    dialogue_engine = DialogueEngine()
+    audio_engine = AudioEngine()
 
-    # 自定义CSS样式，模仿ListenHub的设计
     custom_css = """
     .main-container {
         max-width: 1200px;
@@ -553,13 +229,10 @@ def create_interface():
         css=custom_css
     ) as app:
 
-        # 移除原来的顶部语言切换器，将在底部实现
-
         # 主标题和介绍
         hero_section = gr.HTML("""
         <div class="hero-section">
             <h1 class="hero-title">ListenPub - AI播客生成平台</h1>
-            <p class="hero-subtitle">将文本素材转化为自然互动的多角色播客音频</p>
         </div>
         """)
 
@@ -571,8 +244,8 @@ def create_interface():
                     settings_title = gr.Markdown("### 播客设置")
 
                     topic_input = gr.Textbox(
-                        label="播客主题",
-                        placeholder="请输入您想要生成播客的主题...",
+                        label="播客主题或文本内容",
+                        placeholder="请输入您想要生成播客的主题或文本内容...",
                         lines=3,
                         container=True
                     )
@@ -600,14 +273,12 @@ def create_interface():
                         info="选择播客的呈现形式和互动风格"
                     )
 
-                    voice_dropdown = gr.Dropdown(
-                        choices=list(generator.voice_presets.keys()),
-                        label="声音风格选择",
-                        value=list(generator.voice_presets.keys())[0],
-                        container=True,
-                        info="选择符合角色特点的声音风格"
+                    # 显示选中场景的详细信息
+                    scenario_info = gr.Markdown(
+                        "",
+                        label="场景详细信息",
+                        container=True
                     )
-
 
                     generate_btn = gr.Button(
                         "生成播客",
@@ -664,78 +335,6 @@ def create_interface():
             history_output = gr.Markdown("暂无生成历史")
             refresh_history_btn = gr.Button("刷新历史", variant="secondary")
 
-        with gr.Accordion("高级设置", open=False) as settings_accordion:
-            settings_title_adv = gr.Markdown("### 高级设置")
-            with gr.Row():
-                api_key_input = gr.Textbox(
-                    label="OpenAI API Key",
-                    type="password",
-                    placeholder="请输入您的API密钥...",
-                    info="用于调用AI模型生成播客脚本"
-                )
-
-                voice_dropdown = gr.Dropdown(
-                    choices=["alloy", "echo", "fable", "onyx", "nova", "shimmer"],
-                    label="声音选择",
-                    value="alloy",
-                    info="选择TTS语音合成的音色"
-                )
-
-            with gr.Row():
-                temperature_slider = gr.Slider(
-                    minimum=0.0,
-                    maximum=1.0,
-                    value=0.7,
-                    step=0.1,
-                    label="创意程度",
-                    info="控制生成内容的随机性和创造性（0=保守，1=创新）"
-                )
-
-                max_tokens_slider = gr.Slider(
-                    minimum=100,
-                    maximum=4000,
-                    value=2000,
-                    step=100,
-                    label="内容长度",
-                    info="控制生成内容的长度（token数量）"
-                )
-
-        # 关于信息
-        with gr.Accordion("关于 ListenPub", open=False) as about_accordion:
-            about_title_section = gr.Markdown("### 关于 ListenPub")
-            about_content_md = gr.Markdown("""
-            ## ListenPub - AI播客生成平台
-
-            **基于AI技术的智能播客生成平台，将文本素材转化为多角色自然互动的播客音频**
-
-            ### 核心功能
-            - AI驱动的多角色对话生成
-            - 快速高效的播客制作流程
-            - 支持多种输出格式和场景
-            - 中文原生支持，专为中文播客优化
-            - 响应式界面设计，多终端适配
-
-            ### 使用步骤
-            1. 输入播客主题
-            2. 选择角色类型和数量
-            3. 选择场景模式
-            4. 选择声音风格
-            5. 点击"生成播客"按钮
-            6. 等待AI生成播客脚本和音频
-
-            ### 技术栈
-            - 前端：Gradio Web界面
-            - AI模型：腾讯混元大模型
-            - TTS引擎：CosyVoice 2.0.5B
-            """)
-
-        # 底部版本信息
-        with gr.Row(elem_classes=["footer-info"]):
-            version_info = gr.Markdown("""
-            **版本**: v0.1.0 | **技术**: Gradio + CosyVoice + 腾讯混元 | **开源**: MIT License
-            """)
-
-
         # 更新角色信息的函数
         def update_character_info(selected_characters):
             if not selected_characters:
@@ -748,9 +347,20 @@ def create_interface():
                     info_text += f"**{char}**\n"
                     info_text += f"- 身份：{char_data['identity']}\n"
                     info_text += f"- 性格：{char_data['personality']}\n"
-                    info_text += f"- 推荐音色：{char_data['voice_style']}\n\n"
+                    info_text += f"- 音色：{char_data['voice_style']}\n\n"
 
             return info_text
+
+        # 更新场景信息的函数
+        def update_scenario_info(selected_scenario):
+            if not selected_scenario:
+                return "请选择一个场景模式"
+
+            if selected_scenario in generator.scenario_presets:
+                scenario_desc = generator.scenario_presets[selected_scenario]
+                info_text = f"**描述：** {scenario_desc}\n\n"
+                return info_text
+            return ""
 
         # 绑定角色选择变化事件
         character_checkbox.change(
@@ -759,17 +369,77 @@ def create_interface():
             outputs=character_info
         )
 
-        # 绑定生成事件
-        generate_btn.click(
-            fn=lambda topic, characters, scenario, voice: generator.text_to_podcast(topic, characters, scenario, voice, "zh")[:2],
-            inputs=[topic_input, character_checkbox, scenario_dropdown, voice_dropdown],
-            outputs=[script_output, audio_status]
+        # 绑定场景选择变化事件
+        scenario_dropdown.change(
+            fn=update_scenario_info,
+            inputs=scenario_dropdown,
+            outputs=scenario_info
         )
 
-        # 绑定历史刷新事件
-        refresh_history_btn.click(
-            fn=generator.get_history,
-            outputs=history_output
+        # 页面加载时初始化场景信息
+        app.load(
+            fn=update_scenario_info,
+            inputs=scenario_dropdown,
+            outputs=scenario_info
+        )
+
+        # 生成播客的主函数
+        def generate_podcast(topic, selected_characters, scenario):
+            """生成播客脚本和音频信息"""
+            # 验证输入
+            if not topic.strip():
+                return "请输入播客主题或文本内容", "请先输入主题"
+
+            if not selected_characters:
+                return "请至少选择一个角色类型", "请先选择角色"
+
+            if not scenario:
+                return "请选择一个场景模式", "请先选择场景"
+
+            # 准备角色信息
+            characters_data = []
+            for char_name in selected_characters:
+                if char_name in generator.character_presets:
+                    characters_data.append(generator.character_presets[char_name])
+
+            try:
+                # 生成脚本
+                script = dialogue_engine.generate_script(
+                    topic=topic.strip(),
+                    characters=characters_data,
+                    scenario=scenario,
+                    duration_minutes=5 # 预设生成5分钟播客，可根据需要调整
+                )
+
+                # 解析脚本并生成音频信息
+                audio_status, dialogues = audio_engine.generate_audio(
+                    script=script,
+                    characters=characters_data,
+                    scenario=scenario
+                )
+
+                # 添加统计信息
+                if dialogues:
+                    duration = audio_engine.estimate_duration(dialogues)
+                    minutes = int(duration // 60)
+                    seconds = int(duration % 60)
+                    audio_status += f"\n\n预估时长：{minutes} 分 {seconds} 秒"
+
+                    # 添加预览信息
+                    preview = audio_engine.preview_audio_info(dialogues)
+                    audio_status += f"\n\n{preview}"
+
+                return script, audio_status
+
+            except Exception as e:
+                error_msg = f"生成失败：{str(e)}"
+                return error_msg, error_msg
+
+        # 绑定生成按钮的点击事件
+        generate_btn.click(
+            fn=generate_podcast,
+            inputs=[topic_input, character_checkbox, scenario_dropdown],
+            outputs=[script_output, audio_status]
         )
 
     return app
@@ -780,15 +450,13 @@ if __name__ == "__main__":
 
     print("🎙️ 启动 ListenPub AI播客生成器...")
     print("🌐 访问地址: http://localhost:7860")
-    print("🌍 支持中英文切换")
-    print("✨ 界面风格: 模仿 ListenHub.ai 设计")
 
     # 启动Gradio应用
     port = int(os.getenv("GRADIO_SERVER_PORT", 7860))
     app.launch(
         server_name="0.0.0.0",
         server_port=port,
-        share=False,
+        share=True,
         show_error=True,
         debug=True
     )
