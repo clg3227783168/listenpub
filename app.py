@@ -3,11 +3,6 @@ import gradio as gr
 import os
 import sys
 
-# 添加项目根目录到 Python 路径
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from src.engines import DialogueEngine, AudioEngine
-
 class Preset:
     def __init__(self):
         # 初始化预设选项（仅用于UI展示）
@@ -16,84 +11,48 @@ class Preset:
     def _init_preset_options(self):
         """初始化预设的角色和场景选项"""
         self.character_presets = {
-            "商业分析师": {
-                "identity": "资深商业分析师",
-                "personality": "专业理性，逻辑思维强，善于数据分析",
-                "voice_style": "专业权威 沉稳有力的声音，体现专业性"
+            "小付": {
+                "gender": "女",
+                "identity": "专业播客主持人",
+                "personality": "亲和力强，善于引导话题，语言表达清晰",
+                "voice_style": "清晰标准 适合知识传播"
             },
-            "企业高管": {
-                "identity": "企业高级管理人员",
-                "personality": "实战经验丰富，决策果断，具有领导力",
-                "voice_style": "专业权威 沉稳有力的声音，体现专业性"
-            },
-            "科技记者": {
-                "identity": "科技领域记者",
-                "personality": "善于提问，好奇心强，关注科技趋势",
-                "voice_style": "活泼生动 充满活力的声音，富有感染力"
-            },
-            "技术专家": {
-                "identity": "技术领域专家",
+            "小陈": {
+                "gender": "男",
+                "identity": "专家",
                 "personality": "深入浅出，耐心细致，乐于分享知识",
                 "voice_style": "清晰标准 适合知识传播"
             },
-            "历史学者": {
-                "identity": "历史研究学者",
+            "Mike": {
+                "gender": "男",
+                "identity": "学者",
                 "personality": "博学风趣，善于讲故事，富有文化底蕴",
                 "voice_style": "温和亲切 温暖柔和的声音，让人感到舒适"
             },
-            "专业医师": {
-                "identity": "医疗健康专家",
+            "Leo": {
+                "gender": "男",
+                "identity": "医生",
                 "personality": "权威可信，细心负责，关注民生健康",
                 "voice_style": "温柔甜美 轻柔甜美的声音，很有亲和力"
             },
-            "教育工作者": {
-                "identity": "经验丰富的老师",
-                "personality": "耐心细致，循循善诱，富有教育情怀",
-                "voice_style": "温和亲切 温暖柔和的声音，让人感到舒适"
-            },
-            "艺术家": {
-                "identity": "创作型艺术家",
-                "personality": "感性表达，富有创意，追求艺术美感",
-                "voice_style": "深沉磁性 低沉有磁性的声音，很有吸引力"
-            },
-            "评论家": {
-                "identity": "专业评论人员",
-                "personality": "理性分析，专业点评，观点锐利",
-                "voice_style": "专业权威 沉稳有力的声音，体现专业性"
-            },
-            "生活主播": {
+            "Helen": {
+                "gender": "女",
                 "identity": "生活方式分享者",
                 "personality": "亲和力强，贴近生活，善于共情",
                 "voice_style": "活泼生动 充满活力的声音，富有感染力"
             },
-            "新闻主播": {
-                "identity": "新闻播报员",
-                "personality": "客观专业，语言准确，形象端庄",
-                "voice_style": "清晰标准 适合知识传播"
-            },
-            "时事评论员": {
-                "identity": "时事分析专家",
-                "personality": "深度分析，见解独到，关注社会热点",
-                "voice_style": "专业权威 沉稳有力的声音，体现专业性"
-            }
         }
 
         self.scenario_presets = {
-            "深度访谈": "一对一深入访谈形式，探讨专业话题",
-            "圆桌讨论": "多人讨论，观点碰撞，互动热烈",
-            "知识分享": "专家分享知识，听众学习成长",
-            "故事叙述": "以讲故事的方式展开，引人入胜",
-            "问答互动": "主持人提问，嘉宾回答的互动形式",
-            "辩论对话": "不同观点的理性辩论和讨论",
-            "经验分享": "分享个人或专业经验和心得",
-            "新闻解读": "对时事新闻进行深度解读和分析"
+            "深度访谈": "一对一深入探讨", # 角色为主持人和任意其他一人
+            "圆桌讨论": "多人讨论，观点碰撞，互动热烈", # 角色为主持人和两位或以上其他人
+            "辩论对话": "不同观点的理性辩论和讨论", # 角色为两位观点不同的两人
+            "故事叙述": "以讲故事的方式展开，引人入胜", # 角色为主持人和其他一人
         }
 
 def create_interface():
     generator = Preset()
-    dialogue_engine = DialogueEngine()
-    audio_engine = AudioEngine()
-
+    
     custom_css = """
     .main-container {
         max-width: 1200px;
@@ -255,7 +214,7 @@ def create_interface():
                         label="角色类型选择（多选）",
                         value=[list(generator.character_presets.keys())[0], list(generator.character_presets.keys())[1]],
                         container=True,
-                        info="选择适合您播客主题的角色组合（可多选）"
+                        info="选择适合您播客主题的角色组合"
                     )
 
                     # 显示选中角色的详细信息
@@ -345,6 +304,7 @@ def create_interface():
                 if char in generator.character_presets:
                     char_data = generator.character_presets[char]
                     info_text += f"**{char}**\n"
+                    info_text += f"- 性别：{char_data['gender']}\n"
                     info_text += f"- 身份：{char_data['identity']}\n"
                     info_text += f"- 性格：{char_data['personality']}\n"
                     info_text += f"- 音色：{char_data['voice_style']}\n\n"
@@ -388,7 +348,7 @@ def create_interface():
             """生成播客脚本和音频信息"""
             # 验证输入
             if not topic.strip():
-                return "请输入播客主题或文本内容", "请先输入主题"
+                return "请输入播客主题或文本内容", "请先输入主题或文本内容"
 
             if not selected_characters:
                 return "请至少选择一个角色类型", "请先选择角色"
@@ -402,38 +362,38 @@ def create_interface():
                 if char_name in generator.character_presets:
                     characters_data.append(generator.character_presets[char_name])
 
-            try:
-                # 生成脚本
-                script = dialogue_engine.generate_script(
-                    topic=topic.strip(),
-                    characters=characters_data,
-                    scenario=scenario,
-                    duration_minutes=5 # 预设生成5分钟播客，可根据需要调整
-                )
+            # try:
+            #     # 生成脚本
+            #     script = dialogue_engine.generate_script(
+            #         topic=topic.strip(),
+            #         characters=characters_data,
+            #         scenario=scenario,
+            #         duration_minutes=5 # 预设生成5分钟播客，可根据需要调整
+            #     )
 
-                # 解析脚本并生成音频信息
-                audio_status, dialogues = audio_engine.generate_audio(
-                    script=script,
-                    characters=characters_data,
-                    scenario=scenario
-                )
+            #     # 解析脚本并生成音频信息
+            #     audio_status, dialogues = audio_engine.generate_audio(
+            #         script=script,
+            #         characters=characters_data,
+            #         scenario=scenario
+            #     )
 
-                # 添加统计信息
-                if dialogues:
-                    duration = audio_engine.estimate_duration(dialogues)
-                    minutes = int(duration // 60)
-                    seconds = int(duration % 60)
-                    audio_status += f"\n\n预估时长：{minutes} 分 {seconds} 秒"
+            #     # 添加统计信息
+            #     if dialogues:
+            #         duration = audio_engine.estimate_duration(dialogues)
+            #         minutes = int(duration // 60)
+            #         seconds = int(duration % 60)
+            #         audio_status += f"\n\n预估时长：{minutes} 分 {seconds} 秒"
 
-                    # 添加预览信息
-                    preview = audio_engine.preview_audio_info(dialogues)
-                    audio_status += f"\n\n{preview}"
+            #         # 添加预览信息
+            #         preview = audio_engine.preview_audio_info(dialogues)
+            #         audio_status += f"\n\n{preview}"
 
-                return script, audio_status
+            #     return script, audio_status
 
-            except Exception as e:
-                error_msg = f"生成失败：{str(e)}"
-                return error_msg, error_msg
+            # except Exception as e:
+            #     error_msg = f"生成失败：{str(e)}"
+            #     return error_msg, error_msg
 
         # 绑定生成按钮的点击事件
         generate_btn.click(
