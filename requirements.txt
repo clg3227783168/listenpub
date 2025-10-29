@@ -3,3 +3,4 @@ modelscope
 openai
 httpx[socks]
 dashscope
+pydub

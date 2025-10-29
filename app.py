@@ -2,56 +2,69 @@
 import gradio as gr
 import os
 import sys
+from src.dialogue_engine import PodcastScriptGenerator
+from src.audio_engine import AudioGenerator
 
 class Preset:
     def __init__(self):
-        # 初始化预设选项（仅用于UI展示）
-        self._init_preset_options()
-
-    def _init_preset_options(self):
         """初始化预设的角色和场景选项"""
-        self.character_presets = {
+        self.character = {
             "小付": {
                 "gender": "女",
                 "identity": "专业播客主持人",
                 "personality": "亲和力强，善于引导话题，语言表达清晰",
-                "voice_style": "清晰标准 适合知识传播"
+                "voice_style": "吐字清晰、标准，适合知识传播",
             },
             "小陈": {
                 "gender": "男",
-                "identity": "专家",
-                "personality": "深入浅出，耐心细致，乐于分享知识",
-                "voice_style": "清晰标准 适合知识传播"
+                "identity": "计算机技术专家",
+                "personality": "善于化繁为简，讲解细致，乐于授业",
+                "voice_style": "语速平稳、表达精准，适合技术讲解"
             },
             "Mike": {
                 "gender": "男",
                 "identity": "学者",
-                "personality": "博学风趣，善于讲故事，富有文化底蕴",
-                "voice_style": "温和亲切 温暖柔和的声音，让人感到舒适"
+                "personality": "学识广博，叙事生动，富有学养",
+                "voice_style": "语调温和亲切，娓娓道来，富有故事感"
             },
-            "Leo": {
-                "gender": "男",
+            "Lily": {
+                "gender": "女",
                 "identity": "医生",
-                "personality": "权威可信，细心负责，关注民生健康",
-                "voice_style": "温柔甜美 轻柔甜美的声音，很有亲和力"
+                "personality": "专业权威，严谨负责，心系大众健康",
+                "voice_style": "语气温柔，语调稳定，给人以信赖感"
             },
             "Helen": {
                 "gender": "女",
                 "identity": "生活方式分享者",
-                "personality": "亲和力强，贴近生活，善于共情",
-                "voice_style": "活泼生动 充满活力的声音，富有感染力"
+                "personality": "极富亲和力，贴近日常，共情力强",
+                "voice_style": "声音活泼生动，富有朝气与感染力"
             },
         }
 
-        self.scenario_presets = {
-            "深度访谈": "一对一深入探讨", # 角色为主持人和任意其他一人
-            "圆桌讨论": "多人讨论，观点碰撞，互动热烈", # 角色为主持人和两位或以上其他人
-            "辩论对话": "不同观点的理性辩论和讨论", # 角色为两位观点不同的两人
-            "故事叙述": "以讲故事的方式展开，引人入胜", # 角色为主持人和其他一人
+        self.scenario = {
+            "深度访谈": [
+                "开场要有力，能吸引听众",
+                "问题要由浅入深”",
+                "嘉宾的回答要专业、有洞见",
+                "结尾要自然，并引导听众思考"], # 角色为主持人和任意其他一人
+            "圆桌讨论": [
+                "主持人需要平衡参与者的发言",
+                "每位参与者需从自己的专业角度提出至少两个核心观点",
+                "参与者之间要有观点的互动和碰撞，而不仅仅是回答主持人","语言风格轻松、口语化"], # 角色为主持人和两位或以上其他人
+            "辩论对话": [
+                "结构清晰，包含立论、自由辩论和总结陈词环节",
+                "正反方观点要鲜明，论据要充分，有数据或案例支撑",
+                "辩论要有来有回，针对性强，但保持基本礼貌",
+                "主持人需控制节奏，确保辩论有序进行。"],# 角色为主持人和两位观点不同的其他两人
+            "故事叙述": [
+                "故事结构完整，有开端、发展、高潮和结局",
+                "描述要细致，营造出神秘、宁静又略带紧张的氛围。",
+                "使用丰富的感官描写（如：旧书的气味、脚步的回声、昏暗的灯光）",
+                "在关键情节处设置悬念"] # 角色为主持人和其他一人
         }
 
 def create_interface():
-    generator = Preset()
+    preset = Preset()
     
     custom_css = """
     .main-container {
@@ -210,9 +223,9 @@ def create_interface():
                     )
 
                     character_checkbox = gr.CheckboxGroup(
-                        choices=list(generator.character_presets.keys()),
+                        choices=list(preset.character.keys()),
                         label="角色类型选择（多选）",
-                        value=[list(generator.character_presets.keys())[0], list(generator.character_presets.keys())[1]],
+                        value=[list(preset.character.keys())[0], list(preset.character.keys())[1]],
                         container=True,
                         info="选择适合您播客主题的角色组合"
                     )
@@ -225,9 +238,9 @@ def create_interface():
                     )
 
                     scenario_dropdown = gr.Dropdown(
-                        choices=list(generator.scenario_presets.keys()),
+                        choices=list(preset.scenario.keys()),
                         label="场景模式选择",
-                        value=list(generator.scenario_presets.keys())[0],
+                        value=list(preset.scenario.keys())[0],
                         container=True,
                         info="选择播客的呈现形式和互动风格"
                     )
@@ -301,14 +314,13 @@ def create_interface():
 
             info_text = "### 选中角色详情：\n\n"
             for char in selected_characters:
-                if char in generator.character_presets:
-                    char_data = generator.character_presets[char]
+                if char in preset.character:
+                    char_data = preset.character[char]
                     info_text += f"**{char}**\n"
                     info_text += f"- 性别：{char_data['gender']}\n"
                     info_text += f"- 身份：{char_data['identity']}\n"
                     info_text += f"- 性格：{char_data['personality']}\n"
                     info_text += f"- 音色：{char_data['voice_style']}\n\n"
-
             return info_text
 
         # 更新场景信息的函数
@@ -316,8 +328,8 @@ def create_interface():
             if not selected_scenario:
                 return "请选择一个场景模式"
 
-            if selected_scenario in generator.scenario_presets:
-                scenario_desc = generator.scenario_presets[selected_scenario]
+            if selected_scenario in preset.scenario:
+                scenario_desc = preset.scenario[selected_scenario]
                 info_text = f"**描述：** {scenario_desc}\n\n"
                 return info_text
             return ""
@@ -357,43 +369,30 @@ def create_interface():
                 return "请选择一个场景模式", "请先选择场景"
 
             # 准备角色信息
-            characters_data = []
+            characters_data = {}
             for char_name in selected_characters:
-                if char_name in generator.character_presets:
-                    characters_data.append(generator.character_presets[char_name])
+                if char_name in preset.character:
+                    characters_data[char_name] = preset.character[char_name]
 
-            # try:
-            #     # 生成脚本
-            #     script = dialogue_engine.generate_script(
-            #         topic=topic.strip(),
-            #         characters=characters_data,
-            #         scenario=scenario,
-            #         duration_minutes=5 # 预设生成5分钟播客，可根据需要调整
-            #     )
+            try:
+                # 生成脚本
+                script_generator = PodcastScriptGenerator(
+                    topic=topic.strip(),
+                    characters=characters_data,
+                    scenario={scenario: preset.scenario[scenario]},
+                )
+                script = script_generator.generate_script()
 
-            #     # 解析脚本并生成音频信息
-            #     audio_status, dialogues = audio_engine.generate_audio(
-            #         script=script,
-            #         characters=characters_data,
-            #         scenario=scenario
-            #     )
+                # 创建音频生成器实例
+                audioGenerator = AudioGenerator()
+                output_file = audioGenerator.batch_generate_audio(script, "test_podcast.mp3")
+                print(f"音频生成完成: {output_file}")
 
-            #     # 添加统计信息
-            #     if dialogues:
-            #         duration = audio_engine.estimate_duration(dialogues)
-            #         minutes = int(duration // 60)
-            #         seconds = int(duration % 60)
-            #         audio_status += f"\n\n预估时长：{minutes} 分 {seconds} 秒"
+                return script, audio_status
 
-            #         # 添加预览信息
-            #         preview = audio_engine.preview_audio_info(dialogues)
-            #         audio_status += f"\n\n{preview}"
-
-            #     return script, audio_status
-
-            # except Exception as e:
-            #     error_msg = f"生成失败：{str(e)}"
-            #     return error_msg, error_msg
+            except Exception as e:
+                error_msg = f"生成失败：{str(e)}"
+                return error_msg, error_msg
 
         # 绑定生成按钮的点击事件
         generate_btn.click(
@@ -412,11 +411,11 @@ if __name__ == "__main__":
     print("🌐 访问地址: http://localhost:7860")
 
     # 启动Gradio应用
-    port = int(os.getenv("GRADIO_SERVER_PORT", 7860))
+    port = int(os.getenv("GRADIO_SERVER_PORT", 7861))
     app.launch(
         server_name="0.0.0.0",
         server_port=port,
-        share=True,
+        share=False,
         show_error=True,
         debug=True
     )

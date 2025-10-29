@@ -53,3 +53,20 @@
 <Person1> "总结一下，AI在医疗领域的潜力巨大，但挑战也不少！我们需要在<strong>创新</strong>和<strong>监管</strong>之间找到平衡。感谢大家的精彩讨论！下期节目再见！"
 
 <Person2>, <Person3>, <Person4> "[laughter] 下期见！"
+
+<constraints>你必须且只能使用以下指定的情感标记，绝对不允许使用任何其他标记：
+    [breath], 
+    [noise],
+    <strong>, </strong>,
+    [laughter],
+    [cough],
+    [clucking]',
+    [accent]',
+    [quick_breath],
+    <laughter>, </laughter>,
+    [hissing],
+    [sigh],
+    [vocalized-noise],
+    [lipsmack], 
+    [mn]
+    示例:<小付>在面对挑战时，他展现了非凡的<strong>勇气</strong>与<strong>智慧</strong>。</小付><constraints>
